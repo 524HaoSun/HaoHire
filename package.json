@@ -1,5 +1,5 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "haohire",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -37,6 +37,13 @@
     "vinext": "0.0.50",
     "vite": "8.0.13",
     "wrangler": "4.92.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "esbuild",
+      "workerd"
+    ]
   },
   "type": "module"
 }
