@@ -51,7 +51,7 @@ const sanitisePublicUrl = (input: string) => {
   return url;
 };
 
-const parseRenderedPage = (text: string, original: Partial<JobResult>, hostname: string): JobResult => {
+const parseRenderedPage = (text: string, original: Partial<JobResult>, hostname: string, sourceUrl: string): JobResult => {
   const title = labelValue(text, ["Job title", "Position title", "Role title", "Title"])
     || clean(original.title ?? "").replace(/^Title\s*:\s*/i, "")
     || "Job opportunity";
@@ -86,7 +86,7 @@ const parseRenderedPage = (text: string, original: Partial<JobResult>, hostname:
     deadline,
     employmentType,
     requiredDocuments,
-    source: hostname,
+    source: sourceUrl,
     evidence: {
       organisation: organisation === "Organisation not found" ? "Needs review" : "Rendered job page",
       location: location === "Location not found" ? "Needs review" : "Rendered job page",
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
   let directResponse: Response | null = null;
   let direct: Partial<JobResult> = {};
   try {
-    directResponse = await directPost(request.clone());
+    directResponse = await directPost(request.clone() as NextRequest);
     direct = await directResponse.clone().json() as Partial<JobResult>;
     if (directResponse.ok && score(direct, hostname) >= 3) return directResponse;
   } catch {}
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
     });
     if (!readerResponse.ok) throw new Error("The rendered page could not be read.");
     const text = (await readerResponse.text()).slice(0, 250_000);
-    const rendered = parseRenderedPage(text, direct, hostname);
+    const rendered = parseRenderedPage(text, direct, hostname, publicUrl.toString());
     return NextResponse.json(score(rendered, hostname) >= score(direct, hostname) ? rendered : direct);
   } catch {
     if (directResponse?.ok) return directResponse;
