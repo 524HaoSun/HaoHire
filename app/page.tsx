@@ -47,7 +47,7 @@ export default function Home(){
   const enter=()=>{sessionStorage.setItem(entryKey,"yes");setScreen("today")};
   const go=(next:Screen)=>{setOpenRow(null);setOverlay(null);setScreen(next);window.scrollTo({top:0,behavior:"smooth"})};
   async function importJob(event:FormEvent){
-    event.preventDefault();if(!source.trim())return;setError("");setImportStep(1);go("importing");
+    event.preventDefault();if(!source.trim())return;if(document.activeElement instanceof HTMLElement)document.activeElement.blur();setError("");setImportStep(1);go("importing");
     const timer=window.setTimeout(()=>setImportStep(2),450);
     try{const response=await fetch("/api/extract",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source})});const data=await response.json();if(!response.ok)throw new Error(data.error||"This job could not be read.");setDraft(data);setImportStep(3);window.setTimeout(()=>go("review"),520)}catch(reason){setError(reason instanceof Error?reason.message:"This job could not be read.");go("today")}finally{window.clearTimeout(timer)}}
   const addApplication=()=>{const app:Application={...draft,id:Date.now(),status:"Saved",notes:"",reminder:true};setApps(current=>[app,...current]);setSelectedId(app.id);setSource("");setDraft(emptyJob);if(typeof Notification!=="undefined"&&Notification.permission==="default")void Notification.requestPermission();go("applications")};
