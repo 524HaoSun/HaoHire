@@ -19,7 +19,7 @@ test("server renders the finished HaoHire entry page", async () => {
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
-  assert.match(html, /<title>HaoHire — Job application tracking<\/title>/i);
+  assert.match(html, /<title>HaoHire<\/title>/i);
   assert.match(html, /Start tracking/);
   assert.match(html, /kekabu-job-search\.png/);
   assert.match(html, /No account needed/);
@@ -36,6 +36,8 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(page, /hydrated\.current=true/);
   assert.match(page, /if\(!hydrated\.current\)return/);
   assert.match(page, /deadlineCountdown/);
+  assert.match(page, /upcoming\.map/);
+  assert.doesNotMatch(page, /Required documents/);
   assert.match(page, /HaoHire deadline reminder/);
   assert.match(page, /disabled=\{app\.status==="Rejected"\}/);
   assert.match(page, /onClick=\{menu\}/);
@@ -51,7 +53,6 @@ test("extracts a pasted job description without external network access", async 
     "Location: London",
     "Application deadline: 31 December 2026",
     "Employment type: Full-time",
-    "Required documents: CV, Cover letter",
   ].join("\n");
   const response = await worker.fetch(new Request("http://localhost/api/extract", {
     method: "POST",
@@ -65,5 +66,5 @@ test("extracts a pasted job description without external network access", async 
   assert.equal(job.location, "London");
   assert.equal(job.deadline, "2026-12-31");
   assert.equal(job.employmentType, "Full-time");
-  assert.deepEqual(job.requiredDocuments, ["CV", "Cover letter"]);
+  assert.equal("requiredDocuments" in job, false);
 });

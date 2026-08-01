@@ -7,7 +7,6 @@ type JobResult = {
   location: string;
   deadline: string;
   employmentType: string;
-  requiredDocuments: string[];
   source: string;
   evidence: Record<string, string>;
 };
@@ -39,7 +38,6 @@ const score = (job: Partial<JobResult>, hostname: string) => {
     job.location && job.location !== "Location not found",
     Boolean(job.deadline),
     job.employmentType && job.employmentType !== "Not specified",
-    Boolean(job.requiredDocuments?.length),
   ].filter(Boolean).length;
 };
 
@@ -73,26 +71,18 @@ const parseRenderedPage = (text: string, original: Partial<JobResult>, hostname:
     || clean(text.match(/\b(full[- ]time|part[- ]time|fixed[- ]term|permanent|temporary|internship|contract)\b/i)?.[1] ?? "")
     || (original.employmentType && original.employmentType !== "Not specified" ? original.employmentType : "")
     || "Not specified";
-  const requiredDocuments = [
-    /\b(?:CV|curriculum vitae)\b/i.test(text) ? "CV" : "",
-    /\bcover(?:ing)? letter\b/i.test(text) ? "Cover letter" : "",
-    /\b(?:references|referees)\b/i.test(text) ? "References" : "",
-    /\bportfolio\b/i.test(text) ? "Portfolio" : "",
-  ].filter(Boolean);
   return {
     title,
     organisation,
     location,
     deadline,
     employmentType,
-    requiredDocuments,
     source: sourceUrl,
     evidence: {
       organisation: organisation === "Organisation not found" ? "Needs review" : "Rendered job page",
       location: location === "Location not found" ? "Needs review" : "Rendered job page",
       deadline: deadline ? "Rendered job page" : "Needs review",
       employmentType: employmentType === "Not specified" ? "Needs review" : "Rendered job page",
-      requiredDocuments: requiredDocuments.length ? "Job description" : "Needs review",
     },
   };
 };
