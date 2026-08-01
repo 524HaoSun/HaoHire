@@ -12,3 +12,7 @@
 .actionSheet header{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 12px}.actionSheet header strong{font:600 18px Georgia,serif}.actionSheet header button{border:0;background:#f3ede7;width:30px;height:30px;border-radius:50%;font-size:18px}
 .actionSheet>div{display:grid}.actionSheet>div>button{border:0;border-top:1px solid var(--line);background:none;text-align:left;padding:14px 4px;font-size:12px;font-weight:650}.actionSheet>div>button:disabled{opacity:.4;cursor:not-allowed}.actionSheet>div>p{font-size:10px;line-height:1.45;color:var(--muted);margin:10px 4px}
 .actionSheet>div>.sheetSelected{color:var(--orange)}.actionSheet>div>.sheetDanger{color:#d93625}
+.mascot,.mascot *{pointer-events:none!important}.mascot{flex-shrink:0}.entry>.primary{position:relative;z-index:10;isolation:isolate}
+.deadlineList time{display:grid;gap:2px;text-align:right}.deadlineList time strong{font-size:9px;color:var(--orange)}.deadlineList time small{font-size:8px;color:var(--muted)}
+.progress button:disabled{opacity:.45;cursor:not-allowed}
+.detailRowButton:disabled{pointer-events:none}
