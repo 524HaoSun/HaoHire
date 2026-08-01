@@ -21,7 +21,7 @@ test("server renders the finished HaoHire entry page", async () => {
   const html = await response.text();
   assert.match(html, /<title>HaoHire<\/title>/i);
   assert.match(html, /Start tracking/);
-  assert.match(html, /kekabu-job-search\.png/);
+  assert.match(html, /haohire-entry-v2\.webp/);
   assert.match(html, /No account needed/);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site|codex-preview/i);
 });

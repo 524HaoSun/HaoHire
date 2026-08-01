@@ -58,11 +58,10 @@ export default function Home(){
   const confirmRejected=()=>{if(!selected)return;setApps(current=>current.map(app=>app.id===selected.id?{...app,status:"Rejected",reminder:false}:app));setRejectOpen(false)};
   const advance=()=>{if(!selected||selected.status==="Rejected")return;const index=activeStatuses.indexOf(selected.status as Exclude<Status,"Rejected">);setStatus(selected.id,activeStatuses[Math.min(index+1,activeStatuses.length-1)])};
 
-  if(screen==="entry")return <main className={styles.stage}><section className={`${styles.phone} ${styles.entry}`}>
-    <header className={styles.wordmark}>HaoHire</header>
-    <div className={styles.entryCopy}><p>YOUR JOB SEARCH, LESS CHAOTIC.</p><h1>Find it. Track it.<br/>Get hired.</h1><span>Paste any job link or description.<br/>HaoHire organises the details,<br/>deadlines and progress for you.</span></div>
-    <div className={styles.mascot}><Image src="/kekabu-job-search.png" alt="可卡布 organising a job search at a laptop" fill priority sizes="390px"/></div>
-    <button className={styles.primary} onClick={enter}>Start tracking</button><small className={styles.privacy}>No account needed · Your applications stay on this device</small>
+  if(screen==="entry")return <main className={styles.stage}><section className={`${styles.phone} ${styles.entryArtwork}`}>
+    <Image src="/haohire-entry-v2.webp" alt="HaoHire welcome screen featuring Snoopy preparing job applications" fill priority sizes="(max-width: 599px) 100vw, 430px"/>
+    <p className="sr-only">Find it. Track it. Get hired. No account needed. Your applications stay on this device.</p>
+    <button className={styles.entryHotspot} onClick={enter} aria-label="Start tracking"><span className="sr-only">Start tracking</span></button>
   </section></main>;
 
   return <main className={styles.stage}><section className={styles.phone}>
