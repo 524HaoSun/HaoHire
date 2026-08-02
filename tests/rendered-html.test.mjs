@@ -37,6 +37,12 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(page, /if\(!hydrated\.current\)return/);
   assert.match(page, /deadlineCountdown/);
   assert.match(page, /upcoming\.map/);
+  assert.match(page, /days===null\|\|days>=0/);
+  assert.match(css, /\.toneSaved/);
+  assert.match(css, /\.toneApplied/);
+  assert.match(css, /\.toneInterview/);
+  assert.match(css, /\.toneOffer/);
+  assert.match(css, /\.toneRejected/);
   assert.doesNotMatch(page, /Required documents/);
   assert.match(page, /HaoHire deadline reminder/);
   assert.match(page, /disabled=\{app\.status==="Rejected"\}/);
