@@ -46,6 +46,9 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(page, /featureDeadline/);
   assert.match(page, /quickAdvance/);
   assert.match(page, /Save changes/);
+  assert.match(page, /Close status picker/);
+  assert.match(page, /allStatuses\.map/);
+  assert.match(css, /\.statusChoices/);
   assert.match(css, /\.editorSheet/);
   assert.doesNotMatch(page, /Required documents/);
   assert.match(page, /HaoHire deadline reminder/);
