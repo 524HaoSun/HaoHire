@@ -52,6 +52,8 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(css, /\.editorSheet/);
   assert.match(css, /aspect-ratio:853\/1844/);
   assert.match(css, /\.navApplications/);
+  assert.match(css, /Today uses a sunrise/);
+  assert.match(css, /\.bottom \.navOn \.navToday/);
   assert.doesNotMatch(page, /Required documents/);
   assert.match(page, /HaoHire deadline reminder/);
   assert.match(page, /disabled=\{app\.status==="Rejected"\}/);
