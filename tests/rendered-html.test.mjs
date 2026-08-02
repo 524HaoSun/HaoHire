@@ -60,6 +60,19 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(legacy, /fromText\(`\$\{metaTitle\}\\n\$\{text\}`,\s*url\.toString\(\)\)/);
   assert.match(page, /GOOD AFTERNOON/);
   assert.match(page, /GOOD EVENING/);
+  assert.match(page, /function CalendarPage/);
+  assert.match(page, /function Insights/);
+  assert.match(page, /Search jobs or universities/);
+  assert.match(page, /Application timeline/);
+  assert.match(page, /Paste from clipboard/);
+  assert.match(page, /normaliseApplication/);
+  assert.match(page, /interviewDate/);
+  assert.match(page, /followUpDate/);
+  assert.match(page, /offerDeadline/);
+  assert.match(css, /\.focusCard/);
+  assert.match(css, /\.monthGrid/);
+  assert.match(css, /\.navAddButton/);
+  assert.match(css, /prefers-reduced-motion/);
 });
 
 test("extracts a pasted job description without external network access", async () => {
