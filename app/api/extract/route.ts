@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { POST as directPost } from "./legacy";
+import { resolveLocation } from "./location";
 
 type JobResult = {
   title: string;
@@ -28,14 +29,14 @@ const normalizeDate = (value: string) => {
 const labelValue = (text: string, labels: string[]) => {
   const names = labels.map((label) => label.replace(/\s+/g, "\\s*")).join("|");
   const match = text.match(new RegExp(`(?:^|\\n)\\s*(?:[-*]\\s*)?(?:#{1,5}\\s*)?(?:${names})\\s*[:\\-]?\\s*([^\\n]{2,180})`, "i"));
-  return clean(match?.[1] ?? "").replace(/\s+[|•·]\s+.*$/, "");
+  return clean(match?.[1] ?? "").split(/\s*(?:\||•|·)\s*/)[0]?.trim() ?? "";
 };
 
 const score = (job: Partial<JobResult>, hostname: string) => {
   const hostLabel = hostname.replace(/^www\./, "").split(".")[0].replace(/\b\w/g, (letter) => letter.toUpperCase());
   return [
     job.organisation && job.organisation !== "Organisation not found" && job.organisation !== hostLabel,
-    job.location && job.location !== "Location not found",
+    job.location && job.location !== "Location not found" && job.evidence?.location !== "Inferred from organisation",
     Boolean(job.deadline),
     job.employmentType && job.employmentType !== "Not specified",
   ].filter(Boolean).length;
@@ -60,9 +61,10 @@ const parseRenderedPage = (text: string, original: Partial<JobResult>, hostname:
     || clean(namedOrganisation)
     || (directOrganisation === hostLabel ? "" : directOrganisation)
     || "Organisation not found";
-  const location = labelValue(text, ["Location", "Work location", "Job location", "Campus", "Based at"])
-    || (original.location && original.location !== "Location not found" ? original.location : "")
-    || "Location not found";
+  const resolvedLocation = resolveLocation([
+    { value: labelValue(text, ["Location", "Work location", "Job location", "Campus", "Based at", "Based in"]), evidence: "Rendered job page" },
+    { value: original.location, evidence: original.evidence?.location ?? "Job page" },
+  ], organisation);
   const deadlineContext = labelValue(text, ["Application deadline", "Closing date", "Apply by", "Applications close", "Application closing date"])
     || text.match(/(?:closing date|application deadline|apply by|applications close)[^\n]{0,100}/i)?.[0]
     || "";
@@ -74,13 +76,13 @@ const parseRenderedPage = (text: string, original: Partial<JobResult>, hostname:
   return {
     title,
     organisation,
-    location,
+    location: resolvedLocation.location,
     deadline,
     employmentType,
     source: sourceUrl,
     evidence: {
       organisation: organisation === "Organisation not found" ? "Needs review" : "Rendered job page",
-      location: location === "Location not found" ? "Needs review" : "Rendered job page",
+      location: resolvedLocation.evidence,
       deadline: deadline ? "Rendered job page" : "Needs review",
       employmentType: employmentType === "Not specified" ? "Needs review" : "Rendered job page",
     },

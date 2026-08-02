@@ -56,8 +56,10 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(page, /HaoHire deadline reminder/);
   assert.match(page, /disabled=\{app\.status==="Rejected"\}/);
   assert.match(page, /onClick=\{menu\}/);
-  assert.match(legacy, /source:url\.toString\(\)/);
-  assert.match(legacy, /fromText\(`\$\{metaTitle\}\\n\$\{text\}`,url\.toString\(\)\)/);
+  assert.match(legacy, /source:\s*url\.toString\(\)/);
+  assert.match(legacy, /fromText\(`\$\{metaTitle\}\\n\$\{text\}`,\s*url\.toString\(\)\)/);
+  assert.match(page, /GOOD AFTERNOON/);
+  assert.match(page, /GOOD EVENING/);
 });
 
 test("extracts a pasted job description without external network access", async () => {
@@ -82,4 +84,36 @@ test("extracts a pasted job description without external network access", async 
   assert.equal(job.deadline, "2026-12-31");
   assert.equal(job.employmentType, "Full-time");
   assert.equal("requiredDocuments" in job, false);
+});
+
+test("validates and infers UK university cities", async () => {
+  const worker = await loadWorker();
+  const extract = async (source) => {
+    const response = await worker.fetch(new Request("http://localhost/api/extract", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ source }),
+    }), env, ctx);
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+
+  const birmingham = await extract("Job title: Fellow\nOrganisation: University of Birmingham");
+  assert.equal(birmingham.location, "Birmingham");
+  assert.equal(birmingham.evidence.location, "Inferred from organisation");
+
+  const warwick = await extract("Job title: Fellow\nOrganisation: University of Warwick");
+  assert.equal(warwick.location, "Coventry");
+
+  const explicit = await extract("Job title: Fellow\nOrganisation: University of Warwick\nLocation: London");
+  assert.equal(explicit.location, "London");
+  assert.equal(explicit.evidence.location, "Job description");
+
+  const postcode = await extract("Job title: Fellow\nOrganisation: University of Birmingham\nLocation: Edgbaston campus, B15 2TT");
+  assert.equal(postcode.location, "Birmingham");
+  assert.equal(postcode.evidence.location, "Derived from postcode");
+
+  const rejectedNoise = await extract("Job title: Fellow\nOrganisation: Unknown Institute\nLocation: Department of Chemistry Salary Grade 7");
+  assert.equal(rejectedNoise.location, "Location not found");
+  assert.equal(rejectedNoise.evidence.location, "Needs review");
 });
