@@ -21,7 +21,7 @@ test("server renders the finished HaoHire entry page", async () => {
   const html = await response.text();
   assert.match(html, /<title>HaoHire<\/title>/i);
   assert.match(html, /Start tracking/);
-  assert.match(html, /haohire-entry-v2\.webp/);
+  assert.match(html, /haohire-entry-mobile\.png/);
   assert.match(html, /No account needed/);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site|codex-preview/i);
 });
@@ -50,6 +50,8 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(page, /allStatuses\.map/);
   assert.match(css, /\.statusChoices/);
   assert.match(css, /\.editorSheet/);
+  assert.match(css, /aspect-ratio:853\/1844/);
+  assert.match(css, /\.navApplications/);
   assert.doesNotMatch(page, /Required documents/);
   assert.match(page, /HaoHire deadline reminder/);
   assert.match(page, /disabled=\{app\.status==="Rejected"\}/);
