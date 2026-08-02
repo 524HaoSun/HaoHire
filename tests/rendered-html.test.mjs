@@ -71,6 +71,13 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(page, /offerDeadline/);
   assert.match(css, /\.focusCard/);
   assert.match(css, /\.monthGrid/);
+  assert.match(page, /Schedule a plan/);
+  assert.match(page, /Job dates appear here automatically/);
+  assert.match(page, /Saving will replace it/);
+  assert.match(page, /aria-pressed=\{filter===type\}/);
+  assert.match(css, /\.agendaHero/);
+  assert.match(css, /\.calendarLegend/);
+  assert.match(css, /\.calendarPlanner/);
   assert.match(css, /\.navAddButton/);
   assert.match(css, /prefers-reduced-motion/);
 });

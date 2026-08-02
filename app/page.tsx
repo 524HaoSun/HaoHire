@@ -12,7 +12,9 @@ type ActivityKind = "created" | "status" | "edited" | "reminder";
 type Activity = { id:string; at:string; kind:ActivityKind; label:string };
 type Application = ExtractedJob & { id:number; status:Status; notes:string; reminder:boolean; createdAt:string; updatedAt:string; activities:Activity[]; interviewDate:string; followUpDate:string; offerDeadline:string };
 type EditableKey = "title"|"organisation"|"location"|"deadline"|"employmentType"|"source"|"notes"|"interviewDate"|"followUpDate"|"offerDeadline";
-type CalendarEvent = { id:string; appId:number; date:string; type:"Deadline"|"Interview"|"Follow-up"|"Offer"; title:string; organisation:string; status:Status };
+type CalendarEventType = "Deadline"|"Interview"|"Follow-up"|"Offer";
+type ScheduleKey = "deadline"|"interviewDate"|"followUpDate"|"offerDeadline";
+type CalendarEvent = { id:string; appId:number; date:string; type:CalendarEventType; title:string; organisation:string; status:Status };
 
 const activeStatuses: Exclude<Status,"Rejected">[] = ["Saved","Applied","Interview","Offer"];
 const allStatuses: Status[] = [...activeStatuses,"Rejected"];
@@ -92,7 +94,7 @@ const startAdd=()=>setOverlay("addJob");
     {screen==="importing"&&<Importing step={importStep} cancel={()=>go("today")}/>}
     {screen==="review"&&<Review job={draft} edit={()=>go("today")} add={addApplication}/>}
     {screen==="applications"&&<Applications apps={apps} counts={counts} filter={filter} setFilter={setFilter} showFilter={()=>setOverlay("filter")} openRow={openRow} setOpenRow={setOpenRow} openDetails={id=>openDetails(id,"applications")} deleteApp={deleteApp} advanceStatus={quickAdvance} add={startAdd}/>}
-    {screen==="calendar"&&<CalendarPage events={events} openDetails={id=>openDetails(id,"calendar")} add={startAdd}/>}
+    {screen==="calendar"&&<CalendarPage apps={apps} events={events} openDetails={id=>openDetails(id,"calendar")} add={startAdd} schedule={(id,key,date,label)=>updateApp(id,{[key]:date},`${label} scheduled for ${date}`)}/>}
     {screen==="insights"&&<Insights apps={apps} counts={counts} openApplications={()=>go("applications")}/>}
     {screen==="details"&&selected&&<Details app={selected} back={()=>go(returnScreen)} menu={()=>setOverlay("detailsMenu")} reject={()=>setRejectOpen(true)} update={(next,label,kind)=>updateApp(selected.id,next,label,kind)}/>}
     {(["today","applications","calendar","insights"] as Screen[]).includes(screen)&&<BottomNav screen={screen} today={()=>go("today")} applications={()=>go("applications")} add={startAdd} calendar={()=>go("calendar")} menu={()=>setOverlay("menu")}/>}
@@ -141,21 +143,45 @@ function SwipeRow({app,open,setOpen,details,remove,advance}:{app:Application;ope
   const up=()=>{setDragging(false);if(delta.current<-48){setOpen(app.id);setOffset(-86)}else if(delta.current>52){setOpen(null);setOffset(0);advance(app.id)}else if(Math.abs(delta.current)<8){setOffset(open?-86:0);details(app.id)}else{setOpen(null);setOffset(0)}};
   return <article className={`${styles.swipe} ${open?styles.swipeOpen:""}`}><span className={styles.advanceAction} aria-hidden="true">Next stage</span><button className={styles.delete} onClick={()=>remove(app.id)}>Delete</button><div className={`${styles.appRow} ${statusTone[app.status]}`} style={{transform:`translateX(${dragging?offset:open?-86:0}px)`}} role="button" tabIndex={0} onKeyDown={event=>{if(event.key==="Enter"||event.key===" ")details(app.id)}} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>{setDragging(false);setOffset(open?-86:0)}}><span className={styles.drag}>≡</span><section><strong>{app.title}</strong><p>{display(app.organisation)}</p><small>⌖ {display(app.location,"Location optional")}</small><span className={styles.rowProgress} aria-label={`${app.status} progress`}><i style={{width:statusProgress[app.status]}}/></span>{app.status==="Rejected"&&<em>This application is closed.</em>}</section><span className={styles.status}>{app.status}</span><span aria-hidden="true">›</span></div></article>
 }
-function CalendarPage({events,openDetails,add}:{events:CalendarEvent[];openDetails:(id:number)=>void;add:()=>void}){
-  const now=new Date();
-  const today=localDateKey(now);
-  const [month,setMonth]=useState(()=>new Date(now.getFullYear(),now.getMonth(),1));
-  const [selected,setSelected]=useState(today);
-  const year=month.getFullYear(),monthIndex=month.getMonth();
-  const offset=(new Date(year,monthIndex,1).getDay()+6)%7;
-  const days=Array.from({length:42},(_,index)=>new Date(year,monthIndex,index-offset+1));
-  const selectedEvents=events.filter(event=>event.date===selected);
-  const upcomingEvents=events.filter(event=>event.date>=today).slice(0,5);
-  const moveMonth=(amount:number)=>{const next=new Date(year,monthIndex+amount,1);setMonth(next);setSelected(localDateKey(next))};
-  const jumpToday=()=>{const next=new Date();setMonth(new Date(next.getFullYear(),next.getMonth(),1));setSelected(localDateKey(next))};
-  return <div className={`${styles.page} ${styles.calendarPage}`}><header className={styles.calendarHeader}><div><p>YOUR SCHEDULE</p><h1>Calendar</h1></div><button onClick={jumpToday}>Today</button></header><section className={styles.monthCard}><header><button onClick={()=>moveMonth(-1)} aria-label="Previous month">‹</button><strong>{new Intl.DateTimeFormat("en-GB",{month:"long",year:"numeric"}).format(month)}</strong><button onClick={()=>moveMonth(1)} aria-label="Next month">›</button></header><div className={styles.weekdays}>{["M","T","W","T","F","S","S"].map((day,index)=><span key={`${day}-${index}`}>{day}</span>)}</div><div className={styles.monthGrid}>{days.map(day=>{const key=localDateKey(day);const dayEvents=events.filter(event=>event.date===key);const outside=day.getMonth()!==monthIndex;return <button key={key} className={`${outside?styles.outsideMonth:""} ${selected===key?styles.daySelected:""} ${key===today?styles.dayToday:""}`} onClick={()=>setSelected(key)} aria-label={`${dateLabel(key)}, ${dayEvents.length} events`}><span>{day.getDate()}</span><i>{dayEvents.slice(0,3).map(event=><b key={event.id} className={styles[`event${event.type.replace("-","")}`]}/>)}</i></button>})}</div></section><section className={styles.agenda}><header><div><p>AGENDA</p><h2>{selected===today?"Today":dateLabel(selected)}</h2></div><span>{selectedEvents.length} events</span></header>{selectedEvents.length?<div>{selectedEvents.map(event=><button key={event.id} className={styles[`event${event.type.replace("-","")}`]} onClick={()=>openDetails(event.appId)}><i/><time>{event.type}</time><span><strong>{event.title}</strong><small>{display(event.organisation)}</small></span><b aria-hidden="true">›</b></button>)}</div>:<div className={styles.agendaEmpty}><span>○</span><strong>No plans for this day</strong><small>Select a dotted date or add a reminder in Job details.</small></div>}</section>{!events.length&&<Empty title="Your calendar is clear" copy="Add a job or set interview and follow-up dates in Job details." action="Add a job" onClick={add} icon="□"/>}{events.length>0&&selectedEvents.length===0&&upcomingEvents.length>0&&<section className={styles.nextEvents}><p>NEXT UP</p>{upcomingEvents.map(event=><button key={event.id} onClick={()=>openDetails(event.appId)}><time>{dateLabel(event.date)}</time><span><strong>{event.title}</strong><small>{event.type}</small></span></button>)}</section>}</div>
+function CalendarPage({apps,events,openDetails,add,schedule}:{apps:Application[];events:CalendarEvent[];openDetails:(id:number)=>void;add:()=>void;schedule:(id:number,key:ScheduleKey,date:string,label:string)=>void}){
+  const initialToday=localDateKey(new Date());
+  const [today,setToday]=useState(initialToday);
+  const [month,setMonth]=useState(()=>{const date=new Date();return new Date(date.getFullYear(),date.getMonth(),1)});
+  const [selected,setSelected]=useState(initialToday);
+  const [filter,setFilter]=useState<CalendarEventType|null>(null);
+  const [plannerOpen,setPlannerOpen]=useState(false);
+  const [planAppId,setPlanAppId]=useState("");
+  const [planType,setPlanType]=useState<CalendarEventType>("Interview");
+  const [planDate,setPlanDate]=useState(initialToday);
+  useEffect(()=>{const timer=window.setInterval(()=>setToday(localDateKey(new Date())),60_000);return()=>window.clearInterval(timer)},[]);
+  const activeApps=apps.filter(app=>app.status!=="Rejected");
+  const monthStart=new Date(month.getFullYear(),month.getMonth(),1);
+  const offset=(monthStart.getDay()+6)%7;
+  const gridStart=new Date(month.getFullYear(),month.getMonth(),1-offset);
+  const days=Array.from({length:42},(_,index)=>new Date(gridStart.getFullYear(),gridStart.getMonth(),gridStart.getDate()+index));
+  const visibleEvents=filter?events.filter(event=>event.type===filter):events;
+  const selectedEvents=visibleEvents.filter(event=>event.date===selected);
+  const upcomingEvents=visibleEvents.filter(event=>event.date>=today).slice(0,5);
+  const selectedDate=new Date(`${selected}T12:00:00`);
+  const selectedWeekday=new Intl.DateTimeFormat("en-GB",{weekday:"short"}).format(selectedDate).toUpperCase();
+  const selectedHeading=selected===today?"Today’s agenda":new Intl.DateTimeFormat("en-GB",{weekday:"long",day:"numeric",month:"long"}).format(selectedDate);
+  const monthIndex=month.getMonth();
+  const planFields:Record<CalendarEventType,ScheduleKey>={Deadline:"deadline",Interview:"interviewDate","Follow-up":"followUpDate",Offer:"offerDeadline"};
+  const planLabels:Record<CalendarEventType,string>={Deadline:"Deadline",Interview:"Interview","Follow-up":"Follow-up",Offer:"Offer response"};
+  const chosenApp=activeApps.find(app=>String(app.id)===planAppId);
+  const existingDate=chosenApp?chosenApp[planFields[planType]]:"";
+  const openPlanner=()=>{if(!activeApps.length){add();return}setPlanAppId("");setPlanType("Interview");setPlanDate(selected);setPlannerOpen(true)};
+  const savePlan=(event:FormEvent)=>{event.preventDefault();const id=Number(planAppId);if(!id||!planDate)return;schedule(id,planFields[planType],planDate,planLabels[planType]);setSelected(planDate);setMonth(new Date(`${planDate}T12:00:00`));setPlannerOpen(false)};
+  const moveMonth=(amount:number)=>{const next=new Date(month.getFullYear(),month.getMonth()+amount,1);setMonth(next);const nextPrefix=`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}`;const firstEvent=visibleEvents.find(event=>event.date.startsWith(nextPrefix));setSelected(today.startsWith(nextPrefix)?today:firstEvent?.date||`${nextPrefix}-01`)};
+  const jumpToday=()=>{const date=new Date();setMonth(new Date(date.getFullYear(),date.getMonth(),1));setSelected(today)};
+  return <div className={`${styles.page} ${styles.calendarPage}`}>
+    <header className={styles.calendarHeader}><div><p>YOUR SCHEDULE</p><h1>Calendar</h1><small>Job dates appear here automatically.</small></div><div><button onClick={jumpToday}>Today</button><button className={styles.calendarAdd} onClick={openPlanner} aria-label="Add a calendar plan">+</button></div></header>
+    <section className={styles.monthCard}><header><button onClick={()=>moveMonth(-1)} aria-label="Previous month">‹</button><strong>{new Intl.DateTimeFormat("en-GB",{month:"long",year:"numeric"}).format(month)}</strong><button onClick={()=>moveMonth(1)} aria-label="Next month">›</button></header><div className={styles.weekdays}>{["M","T","W","T","F","S","S"].map((day,index)=><span key={`${day}-${index}`}>{day}</span>)}</div><div className={styles.monthGrid}>{days.map(day=>{const key=localDateKey(day);const dayEvents=events.filter(event=>event.date===key);const outside=day.getMonth()!==monthIndex;return <button key={key} className={`${outside?styles.outsideMonth:""} ${selected===key?styles.daySelected:""} ${key===today?styles.dayToday:""}`} onClick={()=>setSelected(key)} aria-label={`${dateLabel(key)}, ${dayEvents.length} events`}><span>{day.getDate()}</span><i>{dayEvents.slice(0,3).map(event=><b key={event.id} className={styles[`event${event.type.replace("-","")}`]}/>)}</i></button>})}</div><div className={styles.calendarLegend}>{(["Deadline","Interview","Follow-up","Offer"] as CalendarEventType[]).map(type=><button key={type} className={styles[`event${type.replace("-","")}`]} aria-pressed={filter===type} onClick={()=>setFilter(current=>current===type?null:type)}><i/>{type}</button>)}</div></section>
+    <section className={styles.agenda}><header className={styles.agendaHero}><time><strong>{selectedDate.getDate()}</strong><small>{selectedWeekday}</small></time><div><p>AGENDA</p><h2>{selectedHeading}</h2><small>{filter?`${filter} events only`:"All plans and deadlines"}</small></div><span>{selectedEvents.length}<small>events</small></span><button onClick={openPlanner} aria-label={`Add a plan for ${dateLabel(selected)}`}>+</button></header>{selectedEvents.length?<div>{selectedEvents.map(event=><button key={event.id} className={styles[`event${event.type.replace("-","")}`]} onClick={()=>openDetails(event.appId)}><i/><time>{event.type}</time><span><strong>{event.title}</strong><small>{display(event.organisation)}</small></span><b>View&nbsp; ›</b></button>)}</div>:<div className={styles.agendaEmpty}><span className={styles.emptySpark}/><strong>Nothing scheduled yet</strong><small>{activeApps.length?"Add an interview, follow-up or deadline for this day.":"Add your first job before scheduling an event."}</small><button onClick={openPlanner}>{activeApps.length?"+ Schedule an event":"Add a job"}</button></div>}</section>
+    {events.length>0&&selectedEvents.length===0&&upcomingEvents.length>0&&<section className={styles.nextEvents}><p>NEXT UP</p>{upcomingEvents.map(event=><button key={event.id} onClick={()=>openDetails(event.appId)}><time>{dateLabel(event.date)}</time><span><strong>{event.title}</strong><small>{event.type} · {display(event.organisation)}</small></span><b>›</b></button>)}</section>}
+    {plannerOpen&&<div className={styles.editorShade} onClick={()=>setPlannerOpen(false)}><form className={`${styles.editorSheet} ${styles.calendarPlanner}`} onSubmit={savePlan} onClick={event=>event.stopPropagation()}><header><div><small>ADD TO AGENDA</small><strong>Schedule a plan</strong></div><button type="button" onClick={()=>setPlannerOpen(false)} aria-label="Close planner">×</button></header><label htmlFor="plan-application">Application</label><select id="plan-application" value={planAppId} onChange={event=>setPlanAppId(event.target.value)} required><option value="" disabled>Choose a job</option>{activeApps.map(app=><option value={app.id} key={app.id}>{app.title} — {display(app.organisation)}</option>)}</select><fieldset><legend>Event type</legend><div>{(["Deadline","Interview","Follow-up","Offer"] as CalendarEventType[]).map(type=><button type="button" key={type} className={`${styles[`event${type.replace("-","")}`]} ${planType===type?styles.planTypeOn:""}`} onClick={()=>setPlanType(type)}><i/>{planLabels[type]}</button>)}</div></fieldset><label htmlFor="plan-date">Date</label><input id="plan-date" type="date" value={planDate} onChange={event=>setPlanDate(event.target.value)} required/>{existingDate&&<p className={styles.replaceNote}>This job already has {planLabels[planType].toLowerCase()} on {dateLabel(existingDate)}. Saving will replace it.</p>}<footer><button type="button" onClick={()=>setPlannerOpen(false)}>Cancel</button><button disabled={!planAppId||!planDate}>{existingDate?"Replace date":"Save to calendar"}</button></footer></form></div>}
+  </div>
 }
-
 function Insights({apps,counts,openApplications}:{apps:Application[];counts:Record<Status,number>;openApplications:()=>void}){
   const active=apps.filter(app=>app.status!=="Rejected").length;
   const dueSoon=apps.filter(app=>{const days=daysUntil(app.deadline);return app.status!=="Rejected"&&days!==null&&days>=0&&days<=7}).length;
