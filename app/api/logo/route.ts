@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 type SearchResult = { id?: string; label?: string; description?: string };
 type ClaimValue = { rank?: string; mainsnak?: { snaktype?: string; datavalue?: { value?: unknown } } };
 type Entity = { claims?: Record<string, ClaimValue[]> };
-type KnownInstitution = { canonical:string; domain:string; aliases:string[] };
+type KnownInstitution = { canonical:string; domain:string; aliases:string[]; qid?:string };
 
 const successCache = "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000";
 const wikidataHeaders = { "User-Agent": "HaoHire/2.0 (job application tracker; deterministic organisation logo resolver)" };
@@ -19,7 +19,7 @@ const knownInstitutions:KnownInstitution[] = [
   {canonical:"University of Birmingham",domain:"bham.ac.uk",aliases:["Birmingham University"]},
   {canonical:"Birmingham City University",domain:"bcu.ac.uk",aliases:["BCU"]},
   {canonical:"University of Warwick",domain:"warwick.ac.uk",aliases:["Warwick University"]},
-  {canonical:"Oxford Brookes University",domain:"brookes.ac.uk",aliases:["Oxford Brookes"]},
+  {canonical:"Oxford Brookes University",domain:"brookes.ac.uk",aliases:["Oxford Brookes","Brookes University"],qid:"Q132478"},
   {canonical:"University of Plymouth",domain:"plymouth.ac.uk",aliases:["Plymouth University"]},
   {canonical:"University of the West of England",domain:"uwe.ac.uk",aliases:["UWE Bristol","UWE, Bristol","University of West of England"]},
   {canonical:"University of Greenwich",domain:"greenwich.ac.uk",aliases:["Greenwich University"]},
@@ -59,10 +59,16 @@ const knownByName = new Map(knownInstitutions.flatMap(item=>[item.canonical,...i
 const genericRecruitingHost = (host:string) => /(^|\.)(jobs\.ac\.uk|linkedin\.com|indeed\.[a-z.]+|glassdoor\.[a-z.]+|academicpositions\.(com|co\.uk)|timeshighereducation\.com|myworkdayjobs\.com|workdayjobs\.com|taleo\.net|oraclecloud\.com|successfactors\.(com|eu)|jobvite\.com|greenhouse\.io|lever\.co)$/i.test(host);
 const unsafeHost = (host:string) => !host||host==="localhost"||host.endsWith(".localhost")||/^\d+(\.\d+){3}$/.test(host)||host.includes(":");
 const organisationMatchesHost = (organisation:string,host:string) => {const ignored=new Set(["the","of","and","university","college","school","institute","trust","limited","ltd"]);const words=normalise(organisation).split(" ").filter(word=>word.length>=4&&!ignored.has(word));const acronym=normalise(organisation).split(" ").filter(word=>!ignored.has(word)).map(word=>word[0]).join("");return words.some(word=>host.includes(word))||(acronym.length>=2&&host.split(".").some(part=>part===acronym));};
-const claimString = (claims:Record<string,ClaimValue[]>|undefined,property:string) => {const values=claims?.[property]??[];const ordered=[...values].sort((a,b)=>(a.rank==="preferred"?-1:0)-(b.rank==="preferred"?-1:0));for(const claim of ordered){if(claim.mainsnak?.snaktype&&claim.mainsnak.snaktype!=="value")continue;const value=claim.mainsnak?.datavalue?.value;if(typeof value==="string"&&value)return value}return""};
+const claimString = (claims:Record<string,ClaimValue[]>|undefined,property:string) => {const values=(claims?.[property]??[]).filter(claim=>claim.rank!=="deprecated");const ordered=[...values].sort((a,b)=>(a.rank==="preferred"?-1:0)-(b.rank==="preferred"?-1:0));for(const claim of ordered){if(claim.mainsnak?.snaktype&&claim.mainsnak.snaktype!=="value")continue;const value=claim.mainsnak?.datavalue?.value;if(typeof value==="string"&&value)return value}return""};
+async function commonsThumbnail(filename:string){
+  if(!filename||/[\r\n]/.test(filename))return"";
+  const url=new URL("https://commons.wikimedia.org/w/api.php");
+  url.search=new URLSearchParams({action:"query",format:"json",prop:"imageinfo",titles:`File:${filename}`,iiprop:"url|size|mime",iiurlwidth:"256"}).toString();
+  try{const response=await fetch(url,{headers:wikidataHeaders,next:{revalidate:604800}});if(!response.ok)return"";const data=await response.json() as {query?:{pages?:Record<string,{imageinfo?:Array<{thumburl?:string;url?:string;width?:number;mime?:string}>}>}};const info=Object.values(data.query?.pages??{})[0]?.imageinfo?.[0];if(!info?.mime?.startsWith("image/"))return"";const candidate=info.thumburl||(info.mime==="image/svg+xml"||(info.width??0)>=128?info.url:"");if(!candidate)return"";const parsed=new URL(candidate);return parsed.protocol==="https:"&&parsed.hostname==="upload.wikimedia.org"?parsed.toString():""}catch{return""}
+}
 
 function redirectTo(url:string){const response=NextResponse.redirect(url,307);response.headers.set("Cache-Control",successCache);return response}
-function faviconFor(hostname:string){return `https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(`https://${hostname}`)}&sz=128`}
+function faviconFor(hostname:string){return `https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(`https://${hostname}`)}&sz=256`}
 function notFound(){return new NextResponse(null,{status:404,headers:{"Cache-Control":"no-store"}})}
 
 export async function GET(request:NextRequest){
@@ -74,30 +80,36 @@ export async function GET(request:NextRequest){
   if(!organisation)return notFound();
 
   const known=knownByName.get(normalise(organisation));
-  if(known)return redirectTo(faviconFor(known.domain));
-  if(sourceHost&&organisationMatchesHost(organisation,sourceHost))return redirectTo(faviconFor(sourceHost));
+  const trustedSourceHost=sourceHost&&organisationMatchesHost(organisation,sourceHost)?sourceHost:"";
+  const queryName=known?.canonical??organisation;
 
   try{
-    const searchUrl=new URL("https://www.wikidata.org/w/api.php");
-    searchUrl.search=new URLSearchParams({action:"wbsearchentities",search:organisation,language:"en",uselang:"en",format:"json",limit:"8"}).toString();
-    const searchResponse=await fetch(searchUrl,{headers:wikidataHeaders,next:{revalidate:604800}});
-    if(!searchResponse.ok)return notFound();
-    const searchData=await searchResponse.json() as {search?:SearchResult[]};
-    const exact=(searchData.search??[]).filter(item=>item.id&&normalise(item.label??"")===normalise(organisation));
-    const academic=exact.filter(item=>/university|college|higher education|research institute|academic/i.test(item.description??""));
-    const candidate=academic.length===1?academic[0]:exact.length===1?exact[0]:null;
-    if(!candidate?.id)return notFound();
-
-    const entityUrl=new URL("https://www.wikidata.org/w/api.php");
-    entityUrl.search=new URLSearchParams({action:"wbgetentities",ids:candidate.id,props:"claims",format:"json"}).toString();
-    const entityResponse=await fetch(entityUrl,{headers:wikidataHeaders,next:{revalidate:604800}});
-    if(!entityResponse.ok)return notFound();
-    const entityData=await entityResponse.json() as {entities?:Record<string,Entity>};
-    const claims=entityData.entities?.[candidate.id]?.claims;
-    const logo=claimString(claims,"P154");
-    if(logo)return redirectTo(`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(logo)}?width=128`);
-    const website=claimString(claims,"P856");
-    if(website){try{const host=new URL(website).hostname.toLowerCase();if(!unsafeHost(host)&&!genericRecruitingHost(host))return redirectTo(faviconFor(host))}catch{}}
+    let candidateId=known?.qid??"";
+    if(!candidateId){
+      const searchUrl=new URL("https://www.wikidata.org/w/api.php");
+      searchUrl.search=new URLSearchParams({action:"wbsearchentities",search:queryName,language:"en",uselang:"en",format:"json",limit:"8"}).toString();
+      const searchResponse=await fetch(searchUrl,{headers:wikidataHeaders,next:{revalidate:604800}});
+      if(!searchResponse.ok)throw new Error("Wikidata search failed");
+      const searchData=await searchResponse.json() as {search?:SearchResult[]};
+      const exact=(searchData.search??[]).filter(item=>item.id&&normalise(item.label??"")===normalise(queryName));
+      const academic=exact.filter(item=>/university|college|higher education|research institute|academic/i.test(item.description??""));
+      const candidate=academic.length===1?academic[0]:exact.length===1?exact[0]:null;
+      candidateId=candidate?.id??"";
+    }
+    if(candidateId){
+      const entityUrl=new URL("https://www.wikidata.org/w/api.php");
+      entityUrl.search=new URLSearchParams({action:"wbgetentities",ids:candidateId,props:"claims",format:"json"}).toString();
+      const entityResponse=await fetch(entityUrl,{headers:wikidataHeaders,next:{revalidate:604800}});
+      if(!entityResponse.ok)throw new Error("Wikidata entity lookup failed");
+      const entityData=await entityResponse.json() as {entities?:Record<string,Entity>};
+      const claims=entityData.entities?.[candidateId]?.claims;
+      const logo=claimString(claims,"P154");
+      if(logo){const thumbnail=await commonsThumbnail(logo);if(thumbnail)return redirectTo(thumbnail)}
+      const website=claimString(claims,"P856");
+      if(website){try{const host=new URL(website).hostname.toLowerCase();if(!unsafeHost(host)&&!genericRecruitingHost(host))return redirectTo(faviconFor(host))}catch{}}
+    }
   }catch{}
+  if(known)return redirectTo(faviconFor(known.domain));
+  if(trustedSourceHost)return redirectTo(faviconFor(trustedSourceHost));
   return notFound();
 }
