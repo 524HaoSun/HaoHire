@@ -75,3 +75,6 @@
 .navToday:before{content:"";position:absolute;left:10px;top:7px;width:9px;height:9px;border:0;border-radius:50%;background:currentColor;box-shadow:0 -6px 0 -3px currentColor,-7px -3px 0 -3px currentColor,7px -3px 0 -3px currentColor}
 .navToday:after{content:"";position:absolute;left:4px;right:auto;top:17px;width:21px;height:5px;border-top:1.7px solid currentColor;border-radius:50% 50% 0 0;background:none;box-shadow:0 4px 0 -1.2px currentColor;opacity:.9}
 .bottom .navOn .navToday{filter:drop-shadow(0 2px 3px rgba(240,68,18,.22))}
+/* Trustworthy organisation marks: verified images fade over a designed monogram fallback. */
+.deadlineLogo{position:relative;border:1px solid rgba(74,54,75,.09);color:#39273e;isolation:isolate}.deadlineLogo>b{font:850 12px/1 Arial,sans-serif;letter-spacing:-.02em}.deadlineLogo>img{position:absolute;inset:0;z-index:1;padding:3px;object-fit:contain;background:#fff;opacity:0;transition:opacity .16s ease}.deadlineLogo>img.logoLoaded{opacity:1}.logoToneLavender{background:linear-gradient(145deg,#eee7f2,#f7f1f4)}.logoToneSage{background:linear-gradient(145deg,#e6eee3,#f4f6ed)}.logoToneSand{background:linear-gradient(145deg,#f2e7d8,#faf3e9)}
+@media(prefers-reduced-motion:reduce){.deadlineLogo>img{transition:none}}

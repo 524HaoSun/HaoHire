@@ -27,10 +27,11 @@ test("server renders the finished HaoHire entry page", async () => {
 });
 
 test("ships working interaction and persistence safeguards", async () => {
-  const [page, css, legacy] = await Promise.all([
+  const [page, css, legacy, logo] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/haohire.module.css", import.meta.url), "utf8"),
     readFile(new URL("../app/api/extract/legacy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/logo/route.ts", import.meta.url), "utf8"),
   ]);
   assert.match(css, /\.mascot,\.mascot \*\{pointer-events:none!important/);
   assert.match(page, /hydrated\.current=true/);
@@ -82,8 +83,44 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(css, /\.calendarPlanner/);
   assert.match(css, /\.navAddButton/);
   assert.match(css, /prefers-reduced-motion/);
+  assert.match(page, /\/api\/logo\?v=2&organisation=/);
+  assert.match(page, /<VerifiedLogoImage key=\{src\} src=\{src\}\/>/);
+  assert.match(logo, /genericRecruitingHost/);
+  assert.match(logo, /exact\.length===1/);
+  assert.match(logo, /Cache-Control\":\"no-store/);
 });
 
+test("resolves organisation logos conservatively", async () => {
+  const worker = await loadWorker();
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => { throw new Error("Known institutions must not need a fuzzy search"); };
+    const known = await worker.fetch(new Request("http://localhost/api/logo?v=2&organisation=UWE%2C%20Bristol&sourceHost=jobs.ac.uk"), env, ctx);
+    assert.equal(known.status, 307);
+    assert.match(known.headers.get("location") ?? "", /uwe\.ac\.uk/i);
+
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      if (calls === 1) return Response.json({ search: [
+        { id: "Q-wrong", label: "Northbridge University Press", description: "publisher" },
+        { id: "Q-right", label: "Northbridge Research University", description: "public research university" },
+      ] });
+      return Response.json({ entities: { "Q-right": { claims: { P856: [{ rank: "preferred", mainsnak: { snaktype: "value", datavalue: { value: "https://northbridge.edu" } } }] } } } });
+    };
+    const exact = await worker.fetch(new Request("http://localhost/api/logo?v=2&organisation=Northbridge%20Research%20University&sourceHost=jobs.ac.uk"), env, ctx);
+    assert.equal(exact.status, 307);
+    assert.match(exact.headers.get("location") ?? "", /northbridge\.edu/i);
+    assert.equal(calls, 2);
+
+    globalThis.fetch = async () => Response.json({ search: [{ id: "Q-wrong", label: "Unknown Institute Press", description: "publisher" }] });
+    const ambiguous = await worker.fetch(new Request("http://localhost/api/logo?v=2&organisation=Unknown%20Institute&sourceHost=jobs.ac.uk"), env, ctx);
+    assert.equal(ambiguous.status, 404);
+    assert.equal(ambiguous.headers.get("cache-control"), "no-store");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 test("extracts a pasted job description without external network access", async () => {
   const worker = await loadWorker();
   const source = [
