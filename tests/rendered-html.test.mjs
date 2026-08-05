@@ -83,7 +83,7 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(css, /\.calendarPlanner/);
   assert.match(css, /\.navAddButton/);
   assert.match(css, /prefers-reduced-motion/);
-  assert.match(page, /\/api\/logo\?v=3&organisation=/);
+  assert.match(page, /\/api\/logo\?v=4&organisation=/);
   assert.match(page, /<VerifiedLogoImage key=\{src\} src=\{src\}\/>/);
   assert.match(logo, /genericRecruitingHost/);
   assert.match(logo, /exact\.length===1/);
@@ -91,12 +91,19 @@ test("ships working interaction and persistence safeguards", async () => {
   assert.match(logo, /iiurlwidth:\"256\"/);
   assert.match(logo, /upload\.wikimedia\.org/);
   assert.match(logo, /&sz=256/);
+  assert.match(logo, /known\?\.assetUrl/);
+  assert.match(logo, /brand-VI-logo-horizontal-fullcolour/);
 });
 
 test("resolves organisation logos conservatively", async () => {
   const worker = await loadWorker();
   const originalFetch = globalThis.fetch;
   try {
+    globalThis.fetch = async () => { throw new Error("UCL must use its reviewed 2026 official asset"); };
+    const ucl = await worker.fetch(new Request("http://localhost/api/logo?v=4&organisation=University%20College%20London&sourceHost=jobs.ac.uk"), env, ctx);
+    assert.equal(ucl.status, 307);
+    assert.match(ucl.headers.get("location") ?? "", /^https:\/\/www\.ucl\.ac\.uk\/brand-and-experience\//i);
+    assert.match(ucl.headers.get("location") ?? "", /brand-VI-logo-horizontal-fullcolour/i);
     let brookesCalls = 0;
     globalThis.fetch = async () => {
       brookesCalls += 1;
@@ -106,7 +113,7 @@ test("resolves organisation logos conservatively", async () => {
       ] } } } });
       return Response.json({ query: { pages: { "1": { imageinfo: [{ thumburl: "https://upload.wikimedia.org/oxford-brookes/256px-logo.png", mime: "image/png", width: 574 }] } } } });
     };
-    const brookes = await worker.fetch(new Request("http://localhost/api/logo?v=3&organisation=Oxford%20Brookes%20University&sourceHost=jobs.ac.uk"), env, ctx);
+    const brookes = await worker.fetch(new Request("http://localhost/api/logo?v=4&organisation=Oxford%20Brookes%20University&sourceHost=jobs.ac.uk"), env, ctx);
     assert.equal(brookes.status, 307);
     assert.equal(brookes.headers.get("location"), "https://upload.wikimedia.org/oxford-brookes/256px-logo.png");
     assert.equal(brookesCalls, 2);
@@ -118,7 +125,7 @@ test("resolves organisation logos conservatively", async () => {
       if (knownCalls === 2) return Response.json({ entities: { "Q-uwe": { claims: { P154: [{ rank: "preferred", mainsnak: { snaktype: "value", datavalue: { value: "University of the West of England logo.svg" } } }] } } } });
       return Response.json({ query: { pages: { "2": { imageinfo: [{ thumburl: "https://upload.wikimedia.org/uwe/256px-logo.png", mime: "image/png", width: 512 }] } } } });
     };
-    const known = await worker.fetch(new Request("http://localhost/api/logo?v=3&organisation=UWE%2C%20Bristol&sourceHost=jobs.ac.uk"), env, ctx);
+    const known = await worker.fetch(new Request("http://localhost/api/logo?v=4&organisation=UWE%2C%20Bristol&sourceHost=jobs.ac.uk"), env, ctx);
     assert.equal(known.status, 307);
     assert.equal(known.headers.get("location"), "https://upload.wikimedia.org/uwe/256px-logo.png");
     assert.equal(knownCalls, 3);
@@ -132,13 +139,13 @@ test("resolves organisation logos conservatively", async () => {
       ] });
       return Response.json({ entities: { "Q-right": { claims: { P856: [{ rank: "preferred", mainsnak: { snaktype: "value", datavalue: { value: "https://northbridge.edu" } } }] } } } });
     };
-    const exact = await worker.fetch(new Request("http://localhost/api/logo?v=3&organisation=Northbridge%20Research%20University&sourceHost=jobs.ac.uk"), env, ctx);
+    const exact = await worker.fetch(new Request("http://localhost/api/logo?v=4&organisation=Northbridge%20Research%20University&sourceHost=jobs.ac.uk"), env, ctx);
     assert.equal(exact.status, 307);
     assert.match(exact.headers.get("location") ?? "", /northbridge\.edu/i);
     assert.equal(calls, 2);
 
     globalThis.fetch = async () => Response.json({ search: [{ id: "Q-wrong", label: "Unknown Institute Press", description: "publisher" }] });
-    const ambiguous = await worker.fetch(new Request("http://localhost/api/logo?v=3&organisation=Unknown%20Institute&sourceHost=jobs.ac.uk"), env, ctx);
+    const ambiguous = await worker.fetch(new Request("http://localhost/api/logo?v=4&organisation=Unknown%20Institute&sourceHost=jobs.ac.uk"), env, ctx);
     assert.equal(ambiguous.status, 404);
     assert.equal(ambiguous.headers.get("cache-control"), "no-store");
   } finally {

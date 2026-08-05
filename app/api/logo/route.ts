@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 type SearchResult = { id?: string; label?: string; description?: string };
 type ClaimValue = { rank?: string; mainsnak?: { snaktype?: string; datavalue?: { value?: unknown } } };
 type Entity = { claims?: Record<string, ClaimValue[]> };
-type KnownInstitution = { canonical:string; domain:string; aliases:string[]; qid?:string };
+type KnownInstitution = { canonical:string; domain:string; aliases:string[]; qid?:string; assetUrl?:string };
 
 const successCache = "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000";
 const wikidataHeaders = { "User-Agent": "HaoHire/2.0 (job application tracker; deterministic organisation logo resolver)" };
@@ -11,7 +11,7 @@ const knownInstitutions:KnownInstitution[] = [
   {canonical:"University of Oxford",domain:"ox.ac.uk",aliases:["Oxford University"]},
   {canonical:"University of Cambridge",domain:"cam.ac.uk",aliases:["Cambridge University"]},
   {canonical:"King's College London",domain:"kcl.ac.uk",aliases:["Kings College London","KCL"]},
-  {canonical:"University College London",domain:"ucl.ac.uk",aliases:["UCL"]},
+  {canonical:"University College London",domain:"ucl.ac.uk",aliases:["UCL"],assetUrl:"https://www.ucl.ac.uk/brand-and-experience/sites/brand_and_experience/files/styles/all_size_mobile_16_9/public/2026-01/brand-VI-logo-horizontal-fullcolour.png.jpg?itok=fYM0Bm3E"},
   {canonical:"Imperial College London",domain:"imperial.ac.uk",aliases:["Imperial College","Imperial"]},
   {canonical:"London School of Economics and Political Science",domain:"lse.ac.uk",aliases:["London School of Economics","LSE"]},
   {canonical:"Queen Mary University of London",domain:"qmul.ac.uk",aliases:["Queen Mary London","QMUL"]},
@@ -80,6 +80,7 @@ export async function GET(request:NextRequest){
   if(!organisation)return notFound();
 
   const known=knownByName.get(normalise(organisation));
+  if(known?.assetUrl)return redirectTo(known.assetUrl);
   const trustedSourceHost=sourceHost&&organisationMatchesHost(organisation,sourceHost)?sourceHost:"";
   const queryName=known?.canonical??organisation;
 
